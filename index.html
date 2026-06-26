@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App Supervisores Terreno</title>
+<style>
+  :root{
+    --bg:#f4f6f8;
+    --surface:#ffffff;
+    --ink:#0f1b2d;
+    --muted:#6b7888;
+    --line:#e6eaf0;
+    --ok:#4a7fd0;        /* Completadas (azul) */
+    --no:#e4564f;        /* No realizadas (rojo) */
+    --wip:#f0a233;       /* En proceso */
+    --accent:#2f6fd0;    /* títulos */
+    --prom:#9fb0c4;      /* barra promedio */
+    --ok2:#15a34a;       /* semáforo verde */
+    --w0:#e0922f; --w1:#4a7fd0; --w2:#4ca777; --w3:#9c6ade; --w4:#d7556e;  /* semanas */
+    --grid:#eef1f5;
+    --shadow:0 1px 2px rgba(15,27,45,.04), 0 8px 24px rgba(15,27,45,.06);
+    --radius:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-feature-settings:"tnum" 1; -webkit-font-smoothing:antialiased; line-height:1.45;
+  }
+  .wrap{max-width:840px;margin:0 auto;padding:20px 16px 56px}
+
+  header{margin-bottom:16px}
+  .eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:23px;line-height:1.15;margin:4px 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:14px;display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .dot{width:4px;height:4px;border-radius:50%;background:var(--muted);opacity:.5}
+
+  .toggles{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  .seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--shadow)}
+  .seg button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;font-weight:600;padding:7px 15px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:.15s}
+  .seg button.active{background:var(--accent);color:#fff}
+
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 18px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 14px;box-shadow:var(--shadow)}
+  .kpi .lbl{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .kpi .val{font-size:26px;font-weight:750;line-height:1.05;margin-top:5px;letter-spacing:-.02em}
+  .kpi.ok .val{color:var(--ok)} .kpi.no .val{color:var(--no)}
+  .kpi .val small{font-size:13px;font-weight:600;color:var(--muted)}
+
+  /* ---------- chart card ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 16px 12px;box-shadow:var(--shadow)}
+  .card-title{font-size:14px;font-weight:800;color:var(--accent);text-transform:uppercase;letter-spacing:.02em;line-height:1.25;margin-bottom:12px}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .card-head .card-title{margin-bottom:8px}
+  .card-sub{font-size:12.5px;color:var(--muted);font-weight:600;white-space:nowrap;padding-top:2px}
+  .seg-sm{padding:2px}
+  .seg-sm button{font-size:12px;padding:5px 11px}
+  .sem-leg{margin-left:auto;font-size:11.5px}
+
+  /* ---------- tech table ---------- */
+  .ttab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  .ttab th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;text-align:left;padding:6px 8px;border-bottom:2px solid var(--line)}
+  .ttab th.num{text-align:right}
+  .ttab td{font-size:13px;padding:8px;border-bottom:1px solid var(--grid);color:#26303f}
+  .ttab tbody tr:last-child td{border-bottom:0}
+  .ttab tbody tr:hover{background:#f8fafc}
+  .ttab td.tn{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+  .ttab td.num{text-align:right;font-weight:700}
+  .ttab td.prom.r{color:var(--no)} .ttab td.prom.y{color:var(--wip)} .ttab td.prom.g{color:var(--ok2)}
+
+  @media (max-width:560px){
+    .ttab td.tn{max-width:150px;font-size:12px}
+    .ttab td,.ttab th{padding:7px 6px}
+  }
+
+  /* ---------- sin moradores: barras apiladas ---------- */
+  .smrow{display:flex;align-items:center;gap:10px;padding:5px 0}
+  .smname{flex:0 0 150px;font-size:12px;font-weight:600;color:#26303f;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .smbar{flex:1;display:flex;height:24px;border-radius:6px;overflow:hidden;background:#f1f4f8;min-width:0}
+  .smseg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;min-width:44px;transition:flex-basis .5s cubic-bezier(.2,.7,.2,1);position:relative}
+  .smseg.w0{background:var(--w0)} .smseg.w1{background:var(--w1)} .smseg.w2{background:var(--w2)} .smseg.w3{background:var(--w3)} .smseg.w4{background:var(--w4)}
+  .smseg.over{outline:2px solid #b91c1c;outline-offset:-2px}
+  .smtot{flex:0 0 30px;font-size:12px;font-weight:800;color:#26303f;font-variant-numeric:tabular-nums}
+  .smlegitem{display:inline-flex;align-items:center;gap:6px}
+  .smlegitem i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  @media (max-width:560px){
+    .smname{flex-basis:96px;font-size:11px}
+    .smseg{font-size:9.5px;min-width:38px}
+    .smtot{flex-basis:22px}
+  }
+  .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-bottom:8px}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+
+  /* Eje Y fijo + zona de barras desplazable.
+     CLAVE para el celular: si hay muchas comunas, las barras hacen scroll
+     lateral en vez de "correr" la pantalla. El eje (los números) queda quieto
+     a la izquierda. Si hay pocas comunas, llena el ancho normal como siempre. */
+  .chartbox{display:flex;align-items:flex-start;gap:4px}
+  .yaxis{position:relative;flex:0 0 24px;height:240px;margin:6px 0 2px}
+  .yaxis .ylab{position:absolute;right:2px;transform:translateY(-50%);font-size:10px;color:#aeb6c2;white-space:nowrap}
+  .chart-scroll{flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+  .chart-inner{}   /* min-width lo fija el JS según la cantidad de comunas */
+  .scrollhint{font-size:11.5px;color:var(--muted);font-weight:600;text-align:center;margin-top:6px}
+
+  .chart{position:relative;height:240px;margin:6px 0 2px}
+  .gridline{position:absolute;left:0;right:0;border-top:1px solid var(--grid)}
+  .groups{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:space-around;z-index:2}
+  .group{display:flex;flex-direction:column;align-items:center;flex:1;height:100%;justify-content:flex-end}
+  .pair{display:flex;gap:8px;align-items:flex-end;height:100%;width:100%;justify-content:center}
+  .col{width:42px;max-width:24%;border-radius:7px 7px 0 0;position:relative;display:flex;justify-content:center;
+       transition:height .55s cubic-bezier(.2,.7,.2,1)}
+  .col.ok{background:var(--ok)} .col.no{background:var(--no)}
+  .col .v{position:absolute;top:-20px;font-size:12.5px;font-weight:750;color:var(--ink);white-space:nowrap}
+  .xlabels{display:flex;justify-content:space-around;margin-top:9px}
+  .xlabels div{flex:1;text-align:center;font-size:12.5px;font-weight:600;color:#3a4658}
+
+  .foot{font-size:12.5px;color:var(--muted);margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .foot b{color:var(--ink)}
+
+  /* ---------- barras horizontales (vista Completadas) ---------- */
+  .hbar{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .hbar-lbl{flex:0 0 130px;font-size:12.5px;font-weight:600;color:#26303f;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hbar-track{flex:1;height:14px;background:#f1f4f8;border-radius:7px;overflow:hidden;min-width:0}
+  .hbar-fill{height:100%;background:var(--ok);border-radius:7px;transition:width .55s cubic-bezier(.2,.7,.2,1)}
+  .hbar-val{flex:0 0 48px;text-align:right;font-size:13.5px;font-weight:750;color:var(--ink);font-variant-numeric:tabular-nums}
+  @media (max-width:560px){ .hbar-lbl{flex-basis:92px;font-size:11.5px} .hbar-val{flex-basis:40px;font-size:12.5px} }
+
+  /* ---------- cards 1·2·3 play (vista Completadas) ---------- */
+  .pcard{border:1px solid;border-radius:12px;padding:11px 12px}
+  .pcard-h{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+  .pcard-tot{font-size:24px;font-weight:800;line-height:1;margin:4px 0 9px;font-variant-numeric:tabular-nums}
+  .pcard-row{display:flex;justify-content:space-between;font-size:12px;color:#5a6675;padding:3px 0}
+  .pcard-rv{font-weight:750;color:#26303f;font-variant-numeric:tabular-nums}
+  @media (max-width:560px){ .pcard{padding:9px} .pcard-tot{font-size:20px} .pcard-h{font-size:11px} .pcard-row{font-size:11px} }
+
+  /* ---------- chips "sin play" (vista Completadas) ---------- */
+  .nptitle{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin:2px 0 8px}
+  .npwrap{display:flex;flex-wrap:wrap;gap:8px}
+  .npchip{display:flex;align-items:center;gap:8px;background:#f1f4f8;border-radius:9px;padding:7px 11px}
+  .npchip-t{font-size:12px;color:#5a6675;font-weight:600}
+  .npchip-v{font-size:14px;font-weight:800;color:#26303f;font-variant-numeric:tabular-nums}
+
+  /* ---------- ranking de técnicos (vista Ranking) ---------- */
+  .ranktitle{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+  .rankrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--grid)}
+  .rankrow:last-child{border-bottom:0}
+  .rankpos{flex:0 0 22px;height:22px;line-height:22px;text-align:center;font-size:12px;font-weight:800;color:var(--muted);background:#f1f4f8;border-radius:6px}
+  .rankname{flex:1;font-size:13px;font-weight:600;color:#26303f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .rankval{flex:0 0 auto;font-size:14px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+
+  @media (max-width:560px){
+    .kpis{grid-template-columns:repeat(3,1fr);gap:8px}
+    .kpi .val{font-size:22px}
+    .col{width:34px}
+    h1{font-size:20px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">VTR / CLARO · Dominion</div>
+    <h1>App Supervisores Terreno</h1>
+    <div class="sub">
+      <span id="fecha">—</span><span class="dot"></span>
+      <span id="totalLbl">—</span><span class="dot"></span>
+      <span>solo técnicos DOMI</span>
+    </div>
+    <div class="toggles">
+      <div class="seg" id="segVista">
+        <button data-v="principal" class="active">Principal</button>
+        <button data-v="completadas">Completadas</button>
+        <button data-v="norealizadas">No realizadas</button>
+        <button data-v="ranking">Ranking</button>
+      </div>
+      <div class="seg" id="segReg"></div>
+      <div class="seg" id="segSup"></div>
+    </div>
+  </header>
+
+  <div id="vistaPrincipal">
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Actividades completadas — no realizadas por comuna</div>
+      <div class="seg seg-sm" id="segMet"></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--ok)"></i>Completadas</span>
+      <span><i style="background:var(--no)"></i>No realizadas</span>
+    </div>
+    <div class="chartbox">
+      <div class="yaxis" id="yaxis"></div>
+      <div class="chart-scroll" id="chartScroll">
+        <div class="chart-inner" id="chartInner">
+          <div class="chart" id="chart"></div>
+          <div class="xlabels" id="xlabels"></div>
+        </div>
+      </div>
+    </div>
+    <div class="scrollhint" id="scrollHint" style="display:none">Desliza para ver todas las comunas →</div>
+    <div class="foot" id="foot"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">RGU por técnico — hoy vs. promedio/día</div>
+      <span class="card-sub" id="techDate">—</span>
+    </div>
+    <div class="legend">
+      <span class="sem-leg">Promedio: <b style="color:var(--no)">&lt;4</b> · <b style="color:var(--wip)">4–4.9</b> · <b style="color:var(--ok2)">≥5</b></span>
+    </div>
+    <div id="techlist"></div>
+    <div class="foot" id="techfoot"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Acumulado semanal de "Sin moradores" por técnico</div>
+      <span class="card-sub" id="smHdr">—</span>
+    </div>
+    <div class="legend" id="smLegend"></div>
+    <div id="smlist"></div>
+    <div class="foot" id="smfoot"></div>
+  </div>
+  </div><!-- /vistaPrincipal -->
+
+  <div id="vistaCompletadas" style="display:none">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Tipo de actividad — completadas</div>
+        <div class="seg seg-sm" id="segMetComp"></div>
+      </div>
+      <div class="hbars" id="compTipo"></div>
+      <div class="foot" id="compFoot"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">Actividades 1 · 2 · 3 play — completadas</div>
+      <div id="compPlay" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px"></div>
+      <div id="compNoPlay" style="margin-top:14px"></div>
+      <div class="foot" id="compPlayFoot"></div>
+    </div>
+  </div>
+
+  <div id="vistaNoRealizadas" style="display:none">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Tipo de actividad — no realizadas</div>
+        <div class="seg seg-sm" id="segMetCompNR"></div>
+      </div>
+      <div class="hbars" id="compTipoNR"></div>
+      <div class="foot" id="compFootNR"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="card-title">Actividades 1 · 2 · 3 play — no realizadas</div>
+      <div id="compPlayNR" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px"></div>
+      <div id="compNoPlayNR" style="margin-top:14px"></div>
+      <div class="foot" id="compPlayFootNR"></div>
+    </div>
+  </div>
+
+  <div id="vistaRanking" style="display:none">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Top 5 técnicos — día en curso</div>
+        <div class="seg seg-sm" id="segMetRank"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:6px">
+        <div>
+          <div class="ranktitle" style="color:var(--ok)">Más completan</div>
+          <div id="rankComp"></div>
+        </div>
+        <div>
+          <div class="ranktitle" style="color:var(--no)">Más no realizan</div>
+          <div id="rankNoReal"></div>
+        </div>
+      </div>
+      <div class="foot" id="rankFoot"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   1) DATOS — se reemplazan a diario desde Actividades.xlsx (carpeta
+      "Dasboard diario") vía el script procesar. Hoy: datos reales de prueba.
+   ========================================================================= */
+let PRELOADED = [];
+
+let PRELOADED_RGU = [];
+let PRELOADED_HOY = [];
+let PRELOADED_NOREAL = [];
+let PRELOADED_SM = {weeks:[],tecnicos:[]};
+
+/* 2) Mapa de estados -> categoría. Edita aquí si cambia algún estado. */
+const EST_MAP = {
+  "Completado":"completada", "No Realizada":"no_realizada",
+  "Iniciado":"en_proceso", "en ruta":"en_proceso", "Pendiente":"en_proceso",
+  "Cancelado":"cancelada", "Suspendido":"cancelada"
+};
+const cat = e => EST_MAP[e] || "otro";
+
+/* 3) Helpers RGU */
+const rgu = r => Number(r.RGU)||0;
+const r1  = x => Math.round(x*10)/10;
+const fmt = x => { const n=r1(x); return Number.isInteger(n) ? String(n) : n.toFixed(1); };
+
+let supActivo = "TODOS";
+let regActivo = "TODAS";
+let metrica   = "RGU";   // "RGU" = suma RGU | "ACT" = cuenta actividades
+const val = r => metrica==="RGU" ? rgu(r) : 1;
+
+/* Normaliza texto: sin acentos, sin espacios extra, MAYÚSCULAS.
+   El dato_app trae el supervisor con casing distinto según el array
+   ("Alfredo cumetbatch" vs "ALFREDO CUMETBATCH"); esto los unifica. */
+const _norm = s => (s==null ? "" : String(s))
+  .normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toUpperCase();
+/* Nombre prolijo para mostrar: "ALBERTO REALZA" -> "Alberto Realza" */
+const _titulo = s => (s==null ? "" : String(s)).trim().toLowerCase()
+  .replace(/\b[a-záéíóúñ]/g, c => c.toUpperCase());
+
+/* Supervisores RM -> misma regla que procesar.py (SUP_RM).
+   Si entra un supervisor RM nuevo, agrégalo aquí en MAYÚSCULAS. */
+const SUP_RM = new Set(["ALFREDO CUMETBATCH","RUBEN MURILLO"]);
+/* Región del registro/técnico, deducida del supervisor (campo supervisor o sup). */
+const regDe = r => SUP_RM.has(_norm(r && (r.supervisor!=null ? r.supervisor : r.sup))) ? "RM" : "VALPO";
+/* Etiqueta bonita para el botón */
+const REG_LABEL = {VALPO:"Valparaíso", RM:"RM"};
+
+/* Tipos de actividad que SÍ son una petición real (los que calcula el motor RGU).
+   Todo lo demás (Colación, "No inicia ...", Siniestro Personal, etc.) no lleva
+   número de petición y se descarta. Si aparece un tipo real nuevo, agrégalo aquí. */
+const TIPOS_PETICION = new Set(
+  ["Reparación","Alta","Migración","Alta Traslado",
+   "Modificación de Servicio","Upgrade promoción","Modificacion postventa"].map(_norm));
+const tienePeticion = r => TIPOS_PETICION.has(_norm(r["Tipo de Actividad"]));
+/* Pasa el filtro de región activo */
+const okReg = r => regActivo==="TODAS" || regDe(r)===regActivo;
+/* Pasa el filtro de supervisor activo (case-insensitive) */
+const okSup = r => supActivo==="TODOS" || _norm(r.supervisor)===supActivo;
+const okSupT = t => supActivo==="TODOS" || _norm(t.sup)===supActivo;
+
+const filas = () => (regActivo==="TODAS"&&supActivo==="TODOS") ? PRELOADED
+  : PRELOADED.filter(r=> okReg(r) && okSup(r));
+
+function agrupar(){
+  const m = {};
+  for (const r of filas()){
+    const ciu = r.Ciudad ? String(r.Ciudad).trim() : null;
+    if (!ciu) continue;                         // sin comuna no entra a este gráfico
+    const c = cat(r.Estado);
+    if (!m[ciu]) m[ciu] = {completada:0,no_realizada:0,en_proceso:0,cancelada:0};
+    if (m[ciu][c] !== undefined) m[ciu][c] += val(r);
+  }
+  return m;
+}
+
+/* 4) Render */
+function renderSeg(){
+  const set = new Set();
+  // supervisores normalizados (sin acentos, MAYÚSCULAS) -> dedupe del casing.
+  // Solo los de la región activa (si hay filtro de región puesto).
+  PRELOADED.forEach(r=>      okReg(r) && r.supervisor && set.add(_norm(r.supervisor)));   // día
+  PRELOADED_RGU.forEach(r=>  okReg(r) && r.supervisor && set.add(_norm(r.supervisor)));   // acumulado
+  PRELOADED_HOY.forEach(r=>  okReg(r) && r.supervisor && set.add(_norm(r.supervisor)));   // hoy
+  (PRELOADED_SM.tecnicos||[]).forEach(t=> okReg(t) && t.sup && set.add(_norm(t.sup)));    // sin moradores
+  set.delete("");   // por si algún registro viene sin supervisor
+  // si el supervisor activo no pertenece a la región, vuelve a TODOS
+  if (supActivo!=="TODOS" && !set.has(supActivo)) supActivo="TODOS";
+  const sups = ["TODOS", ...[...set].sort()];
+  const cap = s => s==="TODOS" ? "Ambos equipos" : (w=>w[0]+w.slice(1).toLowerCase())(s.split(" ")[0]);
+  document.getElementById("segSup").innerHTML = sups.map(s=>
+    `<button data-s="${s}" class="${s===supActivo?'active':''}">${cap(s)}</button>`).join("");
+  document.querySelectorAll("#segSup button").forEach(b=> b.onclick=()=>{supActivo=b.dataset.s;renderAll();});
+}
+
+function renderRegSeg(){
+  // junta las regiones presentes (deducidas del supervisor de cada registro)
+  const set = new Set();
+  PRELOADED.forEach(r=>      set.add(regDe(r)));
+  PRELOADED_RGU.forEach(r=>  set.add(regDe(r)));
+  PRELOADED_HOY.forEach(r=>  set.add(regDe(r)));
+  (PRELOADED_SM.tecnicos||[]).forEach(t=> set.add(regDe(t)));
+  const cont = document.getElementById("segReg");
+
+  // si hay una sola región, no tiene sentido el filtro: lo ocultamos
+  if (set.size <= 1){ cont.style.display="none"; cont.innerHTML=""; regActivo="TODAS"; return; }
+  cont.style.display="";
+
+  // si la región activa ya no existe en los datos, vuelve a TODAS
+  if (regActivo!=="TODAS" && !set.has(regActivo)) regActivo="TODAS";
+
+  const regs = ["TODAS", ...[...set].sort()];
+  const cap = s => s==="TODAS" ? "Todas" : (REG_LABEL[s] || s);
+  cont.innerHTML = regs.map(s=>
+    `<button data-r="${s}" class="${s===regActivo?'active':''}">${cap(s)}</button>`).join("");
+  cont.querySelectorAll("button").forEach(b=> b.onclick=()=>{regActivo=b.dataset.r;renderAll();});
+}
+
+function renderMet(){
+  const opts = [["RGU","RGU"],["ACT","Actividades"]];
+  document.getElementById("segMet").innerHTML = opts.map(([k,t])=>
+    `<button data-m="${k}" class="${k===metrica?'active':''}">${t}</button>`).join("");
+  document.querySelectorAll("#segMet button").forEach(b=> b.onclick=()=>{metrica=b.dataset.m;renderAll();});
+}
+
+
+/* === Segundo gráfico: RGU por técnico — hoy vs promedio/día === */
+function dkey(f){ const p=f.split('-'); return p[2]+p[1]+p[0]; }
+function semClass(p){ return p<4 ? 'r' : (p<5 ? 'y' : 'g'); }
+
+function renderTech(){
+  const bySup = arr => arr.filter(r=> okReg(r) && okSup(r));
+  const hist = bySup(PRELOADED_RGU);   // histórico -> promedio
+  const day  = bySup(PRELOADED_HOY);   // día en curso -> hoy
+  const hoyFecha = [...new Set(PRELOADED_HOY.map(r=>r.Fecha))][0] || "";
+  document.getElementById("techDate").textContent = hoyFecha ? ("Hoy = "+hoyFecha) : "";
+
+  // promedio histórico por técnico (total ÷ días con actividad), sin contar hoy
+  // OJO: la llave es NOMBRE2 normalizado (sin acentos, MAYÚSCULAS) porque el
+  // array 'rgu' trae "ALBERTO REALZA" y 'hoy' trae "Alberto Realza" -> mismo técnico.
+  const t = {};
+  for (const r of hist){
+    const k = _norm(r.NOMBRE2) || "—";
+    if (!t[k]) t[k] = {disp:_titulo(r.NOMBRE2)||"—", hoy:0, total:0, dias:{}};
+    const v = Number(r.RGU)||0;
+    t[k].total += v;
+    if (v>0) t[k].dias[r.Fecha] = true;
+  }
+  // RGU de hoy por técnico (día en curso)
+  for (const r of day){
+    const k = _norm(r.NOMBRE2) || "—";
+    if (!t[k]) t[k] = {disp:_titulo(r.NOMBRE2)||"—", hoy:0, total:0, dias:{}};
+    t[k].hoy += Number(r.RGU)||0;
+  }
+  const techs = Object.keys(t).map(k=>{
+    const dias = Object.keys(t[k].dias).length;
+    return {n:t[k].disp, hoy:t[k].hoy, total:t[k].total, dias, prom: dias ? t[k].total/dias : 0};
+  }).sort((a,b)=> b.prom-a.prom);
+
+  const maxv = Math.max(1, ...techs.map(x=>Math.max(x.hoy, x.prom)));
+
+  document.getElementById("techlist").innerHTML = `
+    <table class="ttab">
+      <thead><tr><th>Técnico</th><th class="num">RGU hoy</th><th class="num">Promedio</th></tr></thead>
+      <tbody>${techs.map(x=>`
+        <tr>
+          <td class="tn" title="${x.n}">${x.n}</td>
+          <td class="num">${x.hoy?(Math.round(x.hoy*100)/100).toFixed(2):'·'}</td>
+          <td class="num prom ${semClass(x.prom)}">${(Math.round(x.prom*100)/100).toFixed(2)}</td>
+        </tr>`).join("")}</tbody>
+    </table>`;
+
+  const totDias = techs.reduce((s,x)=>s+x.dias,0);
+  const promEq  = totDias ? techs.reduce((s,x)=>s+x.total,0)/totDias : 0;
+  const hoyTot  = techs.reduce((s,x)=>s+x.hoy,0);
+  document.getElementById("techfoot").innerHTML =
+    `<b>${techs.length} técnicos</b> · promedio equipo <b>${fmt(promEq)}</b> RGU/día (histórico) · RGU de hoy: <b>${fmt(hoyTot)}</b>. `+
+    `<b>RGU hoy</b> = lo completado en el día en curso · <b>Promedio</b> = RGU total ÷ días con actividad (histórico). El promedio se pinta con semáforo (🔴&lt;4 · 🟡4–4.9 · 🟢≥5).`;
+}
+
+
+/* === Tercer gráfico: "Sin moradores" semanal por técnico === */
+const WK_COLORS = ["w0","w1","w2","w3","w4"];
+function renderSM(){
+  const W = PRELOADED_SM.weeks;
+  const base = PRELOADED_SM.tecnicos.filter(t=> okReg(t) && okSupT(t));
+  // leyenda
+  document.getElementById("smLegend").innerHTML = W.map((w,i)=>
+    `<span class="smlegitem"><i style="background:var(--w${i})"></i>${w}</span>`).join("");
+
+  // Blindaje: fusiona filas del mismo técnico (nombre normalizado) por si el builder
+  // llega a mandar casing/duplicados. Suma sm[] y asg[] semana a semana. Hoy es no-op.
+  const merged = {};
+  for (const t of base){
+    const k = _norm(t.n) || "—";
+    if (!merged[k]){
+      merged[k] = {n: t.n, sup: t.sup, sm: [...t.sm], asg: [...(t.asg||[])]};
+    } else {
+      const m = merged[k];
+      t.sm.forEach((c,i)=> m.sm[i] = (m.sm[i]||0) + (c||0));
+      (t.asg||[]).forEach((a,i)=> m.asg[i] = (m.asg[i]||0) + (a||0));
+    }
+  }
+
+  const techs = Object.values(merged).map(t=>({...t, total: t.sm.reduce((a,b)=>a+b,0)}))
+                    .filter(t=>t.total>0)
+                    .sort((a,b)=> b.total-a.total);
+  const maxTot = Math.max(1, ...techs.map(t=>t.total));
+
+  document.getElementById("smlist").innerHTML = techs.map(t=>{
+    const segs = t.sm.map((c,i)=>{
+      if (!c) return "";
+      const a = t.asg[i] || 0;
+      const pct = a ? Math.round(c/a*100) : 0;
+      const over = pct>50 ? " over" : "";
+      const basis = c/maxTot*100;
+      const txt = `${c}·${pct}%`;
+      const title = `${W[i]}: ${c} sin moradores / ${a} asignadas = ${pct}%${pct>50?" ⚠ sobre 50%":""}`;
+      return `<div class="smseg ${WK_COLORS[i]}${over}" style="flex-basis:${basis}%" title="${title}">${txt}</div>`;
+    }).join("");
+    return `<div class="smrow"><div class="smname" title="${t.n}">${t.n}</div><div class="smbar">${segs}</div><div class="smtot">${t.total}</div></div>`;
+  }).join("");
+
+  const totSM = techs.reduce((s,t)=>s+t.total,0);
+  const supTxt = supActivo==="TODOS" ? "ambos equipos" : ("Sup.: "+supActivo);
+  document.getElementById("smHdr").textContent =
+    `${techs.length} técnicos · ${totSM} sin moradores · ${W.length} semanas · ${supTxt}`;
+  document.getElementById("smfoot").innerHTML =
+    `Cada segmento = una semana, con <b>cantidad · %</b>. El <b>%</b> = "Sin moradores" ÷ actividades asignadas de esa semana (sin contar Suspendidas). `+
+    `Tope VTR/Claro: <b>50% semanal</b> por técnico — si una semana lo supera, el segmento queda con <b>borde rojo</b>. Ordenado por total de Sin moradores.`;
+}
+
+function render(){
+  renderRegSeg();
+  renderSeg();
+  renderMet();
+  const grp = agrupar();
+  const comunas = Object.keys(grp).sort((a,b)=>
+    (grp[b].completada+grp[b].no_realizada)-(grp[a].completada+grp[a].no_realizada));
+
+  // KPIs (RGU totales del filtro)
+  let tOk=0,tNo=0,tWip=0;
+  for (const k of comunas){ tOk+=grp[k].completada; tNo+=grp[k].no_realizada; tWip+=grp[k].en_proceso; }
+  const cumpl = (tOk+tNo) ? Math.round(tOk*100/(tOk+tNo)) : 0;
+
+  const fechas=[...new Set(PRELOADED.map(r=>r.Fecha).filter(Boolean))];
+  document.getElementById("fecha").textContent = fechas.length===1?fechas[0]:`${fechas.length} fechas`;
+  document.getElementById("totalLbl").textContent = `${filas().length} actividades`;
+
+  const lblOk = metrica==="RGU" ? "RGU completado"   : "Completadas";
+  const lblNo = metrica==="RGU" ? "RGU no realizado" : "No realizadas";
+  document.getElementById("kpis").innerHTML = `
+    <div class="kpi ok"><div class="lbl">${lblOk}</div><div class="val">${fmt(tOk)}</div></div>
+    <div class="kpi no"><div class="lbl">${lblNo}</div><div class="val">${fmt(tNo)}</div></div>
+    <div class="kpi"><div class="lbl">Cumplimiento</div><div class="val">${cumpl}<small>%</small></div></div>`;
+
+  // escala
+  let max = 0;
+  for (const k of comunas) max = Math.max(max, grp[k].completada, grp[k].no_realizada);
+  const step = max<=20?5 : max<=50?10 : 20;
+  // +1 deja "aire" arriba para que la etiqueta de la barra más alta no se corte
+  let top = (Math.floor(max/step)+1)*step;
+  if (!top) top = step;
+
+  // líneas guía (solo la línea) + números en el eje Y fijo de la izquierda
+  let grid="", yax="";
+  for (let v=0; v<=top; v+=step){
+    const y = 100 - (v/top*100);
+    grid += `<div class="gridline" style="top:${y}%"></div>`;
+    yax  += `<div class="ylab" style="top:${y}%">${v}</div>`;
+  }
+  document.getElementById("yaxis").innerHTML = yax;
+  // grupos de barras
+  const groups = comunas.map(k=>{
+    const g=grp[k];
+    const hOk=(g.completada/top*100), hNo=(g.no_realizada/top*100);
+    return `<div class="group"><div class="pair">
+        <div class="col ok" style="height:${hOk}%"><div class="v">${fmt(g.completada)}</div></div>
+        <div class="col no" style="height:${hNo}%"><div class="v">${fmt(g.no_realizada)}</div></div>
+      </div></div>`;
+  }).join("");
+  document.getElementById("chart").innerHTML = grid + `<div class="groups">${groups}</div>`;
+
+  const nice = s => s.replace(/\b\w/g,c=>c.toUpperCase());
+  document.getElementById("xlabels").innerHTML = comunas.map(k=>`<div>${nice(k)}</div>`).join("");
+
+  // Ancho mínimo por comuna. Si hay muchas, el bloque se hace más ancho que la
+  // pantalla y el contenedor permite scroll lateral (en vez de "correr" la página).
+  // Si hay pocas, este mínimo queda chico y el gráfico llena el ancho normal.
+  // El valor debe ser >= al ancho real de cada par de barras según el dispositivo
+  // (celular: barras de 34px; desktop: 42px). Súbelo/bájalo a gusto.
+  const SLOT = window.matchMedia("(max-width:560px)").matches ? 78 : 96;
+  document.getElementById("chartInner").style.minWidth = (comunas.length * SLOT) + "px";
+
+  // Aviso "desliza →" solo si de verdad sobran comunas (hay scroll horizontal)
+  const sc = document.getElementById("chartScroll");
+  document.getElementById("scrollHint").style.display =
+    (sc.scrollWidth > sc.clientWidth + 2) ? "" : "none";
+
+  const uTxt  = metrica==="RGU" ? "RGU sumado" : "cantidad de actividades";
+  const uWip  = metrica==="RGU" ? "RGU" : "actividades";
+  document.getElementById("foot").innerHTML =
+    `Valores en <b>${uTxt}</b>. <b>Completadas</b> = estado "Completado"; `+
+    `<b>No realizadas</b> = estado "No Realizada". Cumplimiento = completado ÷ (completado + no realizado). `+
+    `Hay <b>${fmt(tWip)} ${uWip} en proceso</b> (iniciadas / en ruta / pendientes) que aún no se resuelven.`;
+  renderTech();
+  renderSM();
+}
+
+/* === Vistas Completadas / No realizadas: una sola función para las dos === */
+/* cfg define qué estado filtrar, el color de las barras y los IDs de cada bloque */
+function renderDetalle(cfg){
+  /* toggle de métrica de esta vista, sincronizado con el global `metrica` */
+  const opts = [["RGU","RGU"],["ACT","Actividades"]];
+  document.getElementById(cfg.seg).innerHTML = opts.map(([k,t])=>
+    `<button data-m="${k}" class="${k===metrica?'active':''}">${t}</button>`).join("");
+  document.querySelectorAll("#"+cfg.seg+" button").forEach(b=> b.onclick=()=>{metrica=b.dataset.m;renderAll();});
+
+  /* mismo filtro de supervisor + región global, sobre los datos del día (comuna) */
+  const base = PRELOADED.filter(r=> okReg(r) && okSup(r));
+
+  const porTipo = {}; const cards = {1:{},2:{},3:{}}; const noplay = {}; let total = 0;
+  for (const p of [1,2,3]) for (const t of CONPLAY) cards[p][t]=0;
+  for (const r of base){
+    if (cat(r.Estado) !== cfg.cat) continue;               // filtra Completado / No Realizada
+    const t = (r["Tipo de Actividad"]||"").toString().trim();
+    if (!t) continue;
+    const v = metrica==="RGU" ? (Number(r.RGU)||0) : 1;    // RGU sumado o conteo
+    porTipo[t] = (porTipo[t]||0) + v; total += v;
+    if (CONPLAY.indexOf(t) !== -1){                         // con play -> cards
+      const p = playNum(r.play); if (p) cards[p][t] += v;
+    } else {                                               // sin play -> chips
+      noplay[t] = (noplay[t]||0) + v;
+    }
+  }
+
+  /* barras por tipo */
+  const tipos = Object.keys(porTipo).sort((a,b)=> porTipo[b]-porTipo[a]);
+  const max = Math.max(1, ...tipos.map(k=>porTipo[k]));
+  const cont = document.getElementById(cfg.tipo), foot = document.getElementById(cfg.tipoFoot);
+  if (!tipos.length){
+    cont.innerHTML = `<p style="color:var(--muted);font-size:13px;margin:6px 0">Sin actividades para mostrar (hoy aún no hay datos del día).</p>`;
+    foot.innerHTML = "";
+  } else {
+    cont.innerHTML = tipos.map(k=>{
+      const w = Math.max(porTipo[k]/max*100, 2);
+      return `<div class="hbar">
+        <div class="hbar-lbl" title="${k}">${k}</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:${w}%;background:${cfg.bar}"></div></div>
+        <div class="hbar-val">${fmt(porTipo[k])}</div>
+      </div>`;
+    }).join("");
+    const uTxt = metrica==="RGU" ? "RGU sumado" : "cantidad de actividades";
+    foot.innerHTML = `Valores en <b>${uTxt}</b> · estado <b>${cfg.label}</b> del día en curso · total <b>${fmt(total)}</b>. Ordenado de mayor a menor.`;
+  }
+
+  /* cards 1·2·3 play */
+  document.getElementById(cfg.play).innerHTML = [1,2,3].map(p=>{
+    const s = cfg.playStyle[p]; let tot = 0;
+    const rows = CONPLAY.map(t=>{
+      const v = cards[p][t]; tot += v;
+      return `<div class="pcard-row"><span>${t}</span><span class="pcard-rv">${v?fmt(v):'—'}</span></div>`;
+    }).join("");
+    return `<div class="pcard" style="background:${s.bg};border-color:${s.line}">
+      <div class="pcard-h" style="color:${s.txt}">${s.name}</div>
+      <div class="pcard-tot" style="color:${s.txt}">${fmt(tot)}</div>
+      ${rows}</div>`;
+  }).join("");
+
+  /* chips sin play */
+  const npTipos = Object.keys(noplay).sort((a,b)=> noplay[b]-noplay[a]);
+  document.getElementById(cfg.noplay).innerHTML = npTipos.length
+    ? `<div class="nptitle">Sin play (informativo)</div><div class="npwrap">` +
+      npTipos.map(t=> `<div class="npchip"><span class="npchip-t">${t}</span><span class="npchip-v">${fmt(noplay[t])}</span></div>`).join("") +
+      `</div>`
+    : "";
+
+  const hayPlay = PRELOADED.some(r=> playNum(r.play) > 0);
+  document.getElementById(cfg.playFoot).innerHTML = hayPlay
+    ? `Cards = <b>Alta</b>, <b>Alta Traslado</b> y <b>Migración</b> por play. Abajo, aparte, las que no llevan play. Siguen los filtros de supervisor y métrica.`
+    : `<b style="color:var(--no)">Aún falta el campo <code>play</code> en el JSON.</b> Cuando corra el procesar.py nuevo, las cards se llenan solas (las de abajo, "sin play", ya funcionan).`;
+}
+
+/* === Datos de play (compartidos por ambas vistas de detalle) === */
+const CONPLAY = ["Alta","Alta Traslado","Migración"];
+const PLAY_STYLE = {
+  1:{name:"1 play", txt:"#0f7a37", bg:"#e9f7ee", line:"#bfe6cd"},
+  2:{name:"2 play", txt:"#2f6fd0", bg:"#e9f1fb", line:"#c4dbf4"},
+  3:{name:"3 play", txt:"#b5710f", bg:"#fdf2e0", line:"#f3dcae"}
+};
+/* tonos de rojo para No realizadas (1 play más fuerte -> 3 play más suave) */
+const PLAY_STYLE_NR = {
+  1:{name:"1 play", txt:"#9e2a2a", bg:"#fceaea", line:"#f1bcbc"},
+  2:{name:"2 play", txt:"#c0392b", bg:"#fdeeec", line:"#f4c6bf"},
+  3:{name:"3 play", txt:"#d9776c", bg:"#fdf3f1", line:"#f6d6cf"}
+};
+/* acepta "1 Play", "2", 3, etc. -> 1/2/3 ; cualquier otra cosa -> 0 */
+function playNum(p){ const m=String(p==null?"":p).match(/[123]/); return m?parseInt(m[0],10):0; }
+
+
+/* config de cada vista de detalle (estado a filtrar, color de barras, IDs) */
+const VIEW_COMP = {cat:"completada",   label:"Completado",   bar:"var(--ok)", playStyle:PLAY_STYLE,    seg:"segMetComp",   tipo:"compTipo",   tipoFoot:"compFoot",   play:"compPlay",   noplay:"compNoPlay",   playFoot:"compPlayFoot"};
+const VIEW_NR   = {cat:"no_realizada", label:"No Realizada", bar:"var(--no)", playStyle:PLAY_STYLE_NR, seg:"segMetCompNR", tipo:"compTipoNR", tipoFoot:"compFootNR", play:"compPlayNR", noplay:"compNoPlayNR", playFoot:"compPlayFootNR"};
+
+/* === Vista Ranking: top 5 técnicos del día (completan / no realizan) === */
+function rankear(arr){
+  const base = arr.filter(r=> okReg(r) && okSup(r));
+  const m = {};
+  for (const r of base){
+    const n = r.NOMBRE2 || "—";
+    m[n] = (m[n]||0) + (metrica==="RGU" ? (Number(r.RGU)||0) : 1);
+  }
+  return Object.keys(m).map(n=>({n, val:m[n]}))
+    .filter(x=>x.val>0).sort((a,b)=> b.val-a.val).slice(0,5);
+}
+
+function renderRanking(){
+  /* toggle de métrica de esta vista, sincronizado con el global */
+  const opts = [["RGU","RGU"],["ACT","Actividades"]];
+  document.getElementById("segMetRank").innerHTML = opts.map(([k,t])=>
+    `<button data-m="${k}" class="${k===metrica?'active':''}">${t}</button>`).join("");
+  document.querySelectorAll("#segMetRank button").forEach(b=> b.onclick=()=>{metrica=b.dataset.m;renderAll();});
+
+  const fila = (x,i)=> `<div class="rankrow"><span class="rankpos">${i+1}</span>`+
+    `<span class="rankname" title="${x.n}">${x.n}</span><span class="rankval">${fmt(x.val)}</span></div>`;
+
+  const comp = rankear(PRELOADED_HOY);
+  const nore = rankear(PRELOADED_NOREAL);
+  document.getElementById("rankComp").innerHTML = comp.length
+    ? comp.map(fila).join("")
+    : `<p style="color:var(--muted);font-size:13px;margin:4px 0">Sin completadas hoy.</p>`;
+  document.getElementById("rankNoReal").innerHTML = nore.length
+    ? nore.map(fila).join("")
+    : `<p style="color:var(--muted);font-size:13px;margin:4px 0">Sin no realizadas hoy.</p>`;
+
+  const u = metrica==="RGU" ? "RGU" : "actividades";
+  document.getElementById("rankFoot").innerHTML = PRELOADED_NOREAL.length
+    ? `Top 5 por <b>${u}</b> del día en curso. Sigue el filtro de supervisor de arriba.`
+    : `Top 5 por <b>${u}</b> del día. <b style="color:var(--no)">La columna "no realizan" necesita el array <code>no_real</code> en procesar.py</b> — se llena cuando corra el procesar nuevo.`;
+}
+
+/* dibuja todas las vistas para que los filtros las mantengan sincronizadas */
+function renderAll(){ render(); renderDetalle(VIEW_COMP); renderDetalle(VIEW_NR); renderRanking(); }
+
+/* === Navegación de vistas (Principal / Completadas) === */
+let vistaActiva = "principal";
+function wireVista(){
+  const bs = document.querySelectorAll("#segVista button");
+  bs.forEach(b=> b.onclick = ()=>{
+    vistaActiva = b.dataset.v;
+    bs.forEach(x=> x.classList.toggle("active", x===b));
+    document.getElementById("vistaPrincipal").style.display    = vistaActiva==="principal"    ? "" : "none";
+    document.getElementById("vistaCompletadas").style.display  = vistaActiva==="completadas"  ? "" : "none";
+    document.getElementById("vistaNoRealizadas").style.display = vistaActiva==="norealizadas" ? "" : "none";
+    document.getElementById("vistaRanking").style.display      = vistaActiva==="ranking"      ? "" : "none";
+  });
+}
+wireVista();
+
+// ── Cargar datos desde GitHub (se actualiza solo, sin re-deploy) ──
+// CAMBIO: ahora pedimos el archivo por la API de GitHub (no por "raw"),
+// porque "raw" cachea 5 min y el ?t= no lo salta. La API responde fresco.
+// La cabecera Accept devuelve el JSON tal cual, así que r.json() sigue igual.
+const DATOS_APP_URL = 'https://api.github.com/repos/luis-sepulveda/Datos.avance/contents/datos_app.json';
+function _cargarApp(){
+  fetch(DATOS_APP_URL + '?t=' + Date.now(), { headers: { 'Accept': 'application/vnd.github.raw' } })
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(d){
+      // Solo peticiones reales: fuera Colación, "No inicia ...", Siniestro, etc.
+      PRELOADED     = (d.comuna || []).filter(tienePeticion);
+      PRELOADED_HOY = d.hoy    || [];
+      PRELOADED_NOREAL = d.no_real || [];
+      PRELOADED_RGU = d.rgu    || [];
+      PRELOADED_SM  = d.sm     || {weeks:[],tecnicos:[]};
+      renderAll();
+    })
+    .catch(function(e){ console.error('No se pudo cargar datos_app.json:', e); });
+}
+_cargarApp();
+setInterval(_cargarApp, 600000);  // refresca solo cada 10 min
+</script>
+</body>
+</html>
