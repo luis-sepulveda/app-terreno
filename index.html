@@ -414,14 +414,28 @@ function renderMet(){
 function dkey(f){ const p=f.split('-'); return p[2]+p[1]+p[0]; }
 function semClass(p){ return p<4 ? 'r' : (p<5 ? 'y' : 'g'); }
 
+/* "DD-MM-YYYY" -> "YYYYMM" (mes+año, para agrupar por mes) */
+function _ym(f){ const p=String(f||"").split('-'); return (p[2]||"")+(p[1]||""); }
+/* Mes en curso: el promedio SOLO cuenta este mes, para no arrastrar meses
+   cerrados (junio, etc.). Se deduce de la fecha de "hoy"; si aún no hay
+   datos de hoy, usa la fecha más reciente del histórico. Se resetea solo
+   al cambiar de mes, así que no hay que editar nada en agosto. */
+function mesActivo(){
+  const hoy = [...new Set(PRELOADED_HOY.map(r=>r.Fecha))][0];
+  if (hoy) return _ym(hoy);
+  const ms = PRELOADED_RGU.map(r=>_ym(r.Fecha)).filter(Boolean).sort();
+  return ms.length ? ms[ms.length-1] : "";
+}
+
 function renderTech(){
   const bySup = arr => arr.filter(r=> okReg(r) && okSup(r));
-  const hist = bySup(PRELOADED_RGU);   // histórico -> promedio
+  const mes  = mesActivo();
+  const hist = bySup(PRELOADED_RGU).filter(r=> _ym(r.Fecha)===mes);   // solo MES en curso -> promedio
   const day  = bySup(PRELOADED_HOY);   // día en curso -> hoy
   const hoyFecha = [...new Set(PRELOADED_HOY.map(r=>r.Fecha))][0] || "";
   document.getElementById("techDate").textContent = hoyFecha ? ("Hoy = "+hoyFecha) : "";
 
-  // promedio histórico por técnico (total ÷ días con actividad), sin contar hoy
+  // promedio del MES en curso por técnico (total ÷ días con actividad), sin contar hoy
   // OJO: la llave es NOMBRE2 normalizado (sin acentos, MAYÚSCULAS) porque el
   // array 'rgu' trae "ALBERTO REALZA" y 'hoy' trae "Alberto Realza" -> mismo técnico.
   const t = {};
@@ -460,8 +474,8 @@ function renderTech(){
   const promEq  = totDias ? techs.reduce((s,x)=>s+x.total,0)/totDias : 0;
   const hoyTot  = techs.reduce((s,x)=>s+x.hoy,0);
   document.getElementById("techfoot").innerHTML =
-    `<b>${techs.length} técnicos</b> · promedio equipo <b>${fmt(promEq)}</b> RGU/día (histórico) · RGU de hoy: <b>${fmt(hoyTot)}</b>. `+
-    `<b>RGU hoy</b> = lo completado en el día en curso · <b>Promedio</b> = RGU total ÷ días con actividad (histórico). El promedio se pinta con semáforo (🔴&lt;4 · 🟡4–4.9 · 🟢≥5).`;
+    `<b>${techs.length} técnicos</b> · promedio equipo <b>${fmt(promEq)}</b> RGU/día (mes en curso) · RGU de hoy: <b>${fmt(hoyTot)}</b>. `+
+    `<b>RGU hoy</b> = lo completado en el día en curso · <b>Promedio</b> = RGU total ÷ días con actividad (mes en curso). El promedio se pinta con semáforo (🔴&lt;4 · 🟡4–4.9 · 🟢≥5).`;
 }
 
 
